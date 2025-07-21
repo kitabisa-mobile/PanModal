@@ -411,29 +411,19 @@ private extension PanModalPresentationController {
     func addDragIndicatorView(to view: UIView) {
         view.addSubview(dragIndicatorView)
         
-        // iOS 18+ fix: Use frame-based positioning for iOS 18+
-        if #available(iOS 18.0, *) {
-            // Calculate center based on view's width
-            let centerX = view.bounds.width / 2.0
-            let x = centerX - (Constants.dragIndicatorSize.width / 2.0)
-            
-            dragIndicatorView.frame = CGRect(
-                x: x,
-                y: -Constants.indicatorYOffset - Constants.dragIndicatorSize.height,
-                width: Constants.dragIndicatorSize.width,
-                height: Constants.dragIndicatorSize.height
-            )
-            
-            // Ensure the drag indicator stays centered when view resizes
-            dragIndicatorView.autoresizingMask = [.flexibleLeftMargin, .flexibleRightMargin]
-        } else {
-            // Use constraints for iOS 17 and earlier
-            dragIndicatorView.translatesAutoresizingMaskIntoConstraints = false
-            dragIndicatorView.bottomAnchor.constraint(equalTo: view.topAnchor, constant: -Constants.indicatorYOffset).isActive = true
-            dragIndicatorView.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
-            dragIndicatorView.widthAnchor.constraint(equalToConstant: Constants.dragIndicatorSize.width).isActive = true
-            dragIndicatorView.heightAnchor.constraint(equalToConstant: Constants.dragIndicatorSize.height).isActive = true
-        }
+        // Use frame-based positioning for all iOS versions
+        let centerX = view.bounds.width / 2.0
+        let x = centerX - (Constants.dragIndicatorSize.width / 2.0)
+        
+        dragIndicatorView.frame = CGRect(
+            x: x,
+            y: -Constants.indicatorYOffset - Constants.dragIndicatorSize.height,
+            width: Constants.dragIndicatorSize.width,
+            height: Constants.dragIndicatorSize.height
+        )
+        
+        // Ensure the drag indicator stays centered when view resizes
+        dragIndicatorView.autoresizingMask = [.flexibleLeftMargin, .flexibleRightMargin]
     }
 
     /**
@@ -863,41 +853,60 @@ private extension PanModalPresentationController {
     func addRoundedCorners(to view: UIView) {
         let radius = presentable?.cornerRadius ?? 0
         
-        // iOS 18+ fix: Use modern corner radius API but preserve drag indicator visibility
-        if #available(iOS 18.0, *) {
-            view.layer.cornerRadius = radius
-            view.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
-            // Don't mask to bounds on iOS 18+ to keep drag indicator visible
-            view.layer.masksToBounds = false
-            view.clipsToBounds = false
+        // Universal solution: Always use container view approach
+        
+        // Apply corner radius to the main view (no clipping)
+        view.layer.cornerRadius = radius
+        view.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+        view.layer.masksToBounds = false
+        view.clipsToBounds = false
+        
+        // Create or find the content container
+        let containerTag = 99999
+        var contentContainer = view.subviews.first(where: { $0.tag == containerTag })
+        
+        if contentContainer == nil {
+            // Create container view that clips the content
+            contentContainer = UIView()
+            contentContainer!.tag = containerTag
+            contentContainer!.backgroundColor = .clear
+            contentContainer!.layer.cornerRadius = radius
+            contentContainer!.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+            contentContainer!.layer.masksToBounds = true
+            contentContainer!.clipsToBounds = true
             
-            // Ensure proper rendering
-            DispatchQueue.main.async {
-                view.layer.cornerRadius = radius
-                view.layer.masksToBounds = false
-                view.clipsToBounds = false
+            // Get all existing subviews except the drag indicator
+            let existingSubviews = view.subviews.filter { subview in
+                // Don't move the drag indicator - it should stay outside
+                return subview !== dragIndicatorView
             }
-        } else {
-            // Original implementation for older iOS versions
-            let path = UIBezierPath(roundedRect: view.bounds,
-                                    byRoundingCorners: [.topLeft, .topRight],
-                                    cornerRadii: CGSize(width: radius, height: radius))
-
-            // Draw around the drag indicator view, if displayed
-            if presentable?.showDragIndicator == true {
-                let indicatorLeftEdgeXPos = view.bounds.width/2.0 - Constants.dragIndicatorSize.width/2.0
-                drawAroundDragIndicator(currentPath: path, indicatorLeftEdgeXPos: indicatorLeftEdgeXPos)
+            
+            // Insert container as first subview
+            view.insertSubview(contentContainer!, at: 0)
+            
+            // Setup container constraints to match parent
+            contentContainer!.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                contentContainer!.topAnchor.constraint(equalTo: view.topAnchor),
+                contentContainer!.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                contentContainer!.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                contentContainer!.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            ])
+            
+            // Move existing subviews to the container
+            existingSubviews.forEach { subview in
+                subview.removeFromSuperview()
+                contentContainer!.addSubview(subview)
             }
-
-            // Set path as a mask to display optional drag indicator view & rounded corners
-            let mask = CAShapeLayer()
-            mask.path = path.cgPath
-            view.layer.mask = mask
-
-            // Improve performance by rasterizing the layer
-            view.layer.shouldRasterize = true
-            view.layer.rasterizationScale = UIScreen.main.scale
         }
+        
+        // Ensure drag indicator stays on top and outside the container
+        if presentable?.showDragIndicator == true {
+            view.bringSubviewToFront(dragIndicatorView)
+        }
+        
+        // Update container corner radius in case it changed
+        contentContainer?.layer.cornerRadius = radius
     }
 
     /**
