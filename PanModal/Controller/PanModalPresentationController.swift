@@ -409,30 +409,25 @@ private extension PanModalPresentationController {
      & configures its layout constraints.
      */
     func addDragIndicatorView(to view: UIView) {
-        // iOS 26 fix: Use frame-based positioning instead of constraints
-        let center: CGFloat
-        if #available(iOS 15.0, *),
-           let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let centerX = scene.keyWindow?.center.x {
-            center = centerX
-        } else {
-            center = view.bounds.width / 2.0
-        }
-        
-        let x = center - (Constants.dragIndicatorSize.width / 2)
-        dragIndicatorView.frame = CGRect(
-            x: x,
-            y: -Constants.indicatorYOffset - Constants.dragIndicatorSize.height,
-            width: Constants.dragIndicatorSize.width,
-            height: Constants.dragIndicatorSize.height
-        )
         view.addSubview(dragIndicatorView)
         
-        // Keep the old constraint-based approach for older iOS versions
-        if #available(iOS 16.0, *) {
-            // Frame-based positioning for iOS 16+
+        // iOS 18+ fix: Use frame-based positioning for iOS 18+
+        if #available(iOS 18.0, *) {
+            // Calculate center based on view's width
+            let centerX = view.bounds.width / 2.0
+            let x = centerX - (Constants.dragIndicatorSize.width / 2.0)
+            
+            dragIndicatorView.frame = CGRect(
+                x: x,
+                y: -Constants.indicatorYOffset - Constants.dragIndicatorSize.height,
+                width: Constants.dragIndicatorSize.width,
+                height: Constants.dragIndicatorSize.height
+            )
+            
+            // Ensure the drag indicator stays centered when view resizes
+            dragIndicatorView.autoresizingMask = [.flexibleLeftMargin, .flexibleRightMargin]
         } else {
-            // Fall back to constraints for older versions
+            // Use constraints for iOS 17 and earlier
             dragIndicatorView.translatesAutoresizingMaskIntoConstraints = false
             dragIndicatorView.bottomAnchor.constraint(equalTo: view.topAnchor, constant: -Constants.indicatorYOffset).isActive = true
             dragIndicatorView.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
@@ -868,20 +863,19 @@ private extension PanModalPresentationController {
     func addRoundedCorners(to view: UIView) {
         let radius = presentable?.cornerRadius ?? 0
         
-        // iOS 16+ fix: Use modern corner radius API when available
-        if #available(iOS 16.0, *) {
+        // iOS 18+ fix: Use modern corner radius API but preserve drag indicator visibility
+        if #available(iOS 18.0, *) {
             view.layer.cornerRadius = radius
             view.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
-            view.layer.masksToBounds = true
+            // Don't mask to bounds on iOS 18+ to keep drag indicator visible
+            view.layer.masksToBounds = false
+            view.clipsToBounds = false
             
-            // iOS 16+ specific handling to ensure proper rendering
-            let subviews = view.subviews
-            view.subviews.forEach { $0.removeFromSuperview() }
-            subviews.forEach { view.addSubview($0) }
-            
+            // Ensure proper rendering
             DispatchQueue.main.async {
                 view.layer.cornerRadius = radius
-                view.layer.masksToBounds = true
+                view.layer.masksToBounds = false
+                view.clipsToBounds = false
             }
         } else {
             // Original implementation for older iOS versions
