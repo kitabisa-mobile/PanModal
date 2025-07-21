@@ -239,6 +239,11 @@ open class PanModalPresentationController: UIPresentationController {
             if presentable.shouldRoundTopCorners {
                 self.addRoundedCorners(to: self.presentedView)
             }
+            
+            // Fix: Ensure container view has correct frame
+            if let contentContainer = self.presentedView.subviews.first(where: { $0.tag == 99999 }) {
+                contentContainer.frame = self.presentedView.bounds
+            }
         })
     }
 
@@ -379,6 +384,13 @@ private extension PanModalPresentationController {
         }
         panContainerView.frame.origin.x = frame.origin.x
         presentedViewController.view.frame = CGRect(origin: .zero, size: adjustedSize)
+        
+        // Fix: Update container view frame after adjusting presented view
+        if let contentContainer = presentedView.subviews.first(where: { $0.tag == 99999 }) {
+            contentContainer.frame = CGRect(x: 0, y: 0, 
+                                           width: presentedView.bounds.width, 
+                                           height: presentedView.bounds.height)
+        }
     }
 
     /**
@@ -884,20 +896,18 @@ private extension PanModalPresentationController {
             // Insert container as first subview
             view.insertSubview(contentContainer!, at: 0)
             
-            // Setup container constraints to match parent
-            contentContainer!.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                contentContainer!.topAnchor.constraint(equalTo: view.topAnchor),
-                contentContainer!.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-                contentContainer!.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                contentContainer!.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-            ])
+            // Setup container with frame instead of constraints to avoid width issues
+            contentContainer!.frame = view.bounds
+            contentContainer!.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             
             // Move existing subviews to the container
             existingSubviews.forEach { subview in
                 subview.removeFromSuperview()
                 contentContainer!.addSubview(subview)
             }
+        } else {
+            // Update existing container frame
+            contentContainer!.frame = view.bounds
         }
         
         // Ensure drag indicator stays on top and outside the container
