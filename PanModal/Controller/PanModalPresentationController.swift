@@ -863,7 +863,7 @@ private extension PanModalPresentationController {
      because we render the dragIndicator outside of view bounds
      */
     func addRoundedCorners(to view: UIView) {
-        let radius = presentable?.cornerRadius ?? 0
+        let radius = presentable?.cornerRadius ?? 20
         
         // Universal solution: Always use container view approach
         
