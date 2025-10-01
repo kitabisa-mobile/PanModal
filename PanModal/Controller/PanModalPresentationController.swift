@@ -429,7 +429,7 @@ private extension PanModalPresentationController {
         
         dragIndicatorView.frame = CGRect(
             x: x,
-            y: -Constants.indicatorYOffset - Constants.dragIndicatorSize.height,
+            y: Constants.indicatorYOffset,
             width: Constants.dragIndicatorSize.width,
             height: Constants.dragIndicatorSize.height
         )
